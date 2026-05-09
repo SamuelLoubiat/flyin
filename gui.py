@@ -3,9 +3,10 @@ import tkinter as tk
 from tkinter import TclError
 from typing import List, Any
 
-from Entities import DroneNetwork
-from Entities import HubType
+from DroneNetwork import DroneNetwork
+from DroneNetwork import HubType
 from entities import Hub, MetadataError
+from parser import Parser
 
 
 class DroneSimulationGUI:
@@ -64,7 +65,6 @@ class DroneSimulationGUI:
         self.draw_network()
 
     def precalculate_all_turns(self) -> None:
-        from parser import run_simulation_turn
 
         self.save_state()
 
@@ -73,7 +73,7 @@ class DroneSimulationGUI:
         while any(
                 d.hub.hub_type != HubType.END_HUB
                 or d.waiting_time > 0 for d in self.dn.drones):
-            run_simulation_turn(self.dn)
+            self.dn.run_simulation_turn()
             self.save_state()
             turn_count += 1
             if turn_count >= max_turns:
@@ -233,9 +233,10 @@ class DroneSimulationGUI:
 
 if __name__ == "__main__":
     dn = DroneNetwork()
+    ps = Parser()
     try:
-        dn.parse_file("maps.txt")
-        dn.validate()
+        ps.parse_file(dn, "maps.txt")
+        ps.validate(dn)
         dn.init_drone()
 
         root = tk.Tk()
@@ -243,4 +244,3 @@ if __name__ == "__main__":
         root.mainloop()
     except Exception as e:
         print(f"Error: {e}")
-        raise e
