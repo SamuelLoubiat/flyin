@@ -31,6 +31,7 @@ if __name__ == "__main__":
                 root.mainloop()
         except Exception as e:
             print(f"Error: {e}")
-            raise e
+        except KeyboardInterrupt:
+            pass
     else:
         print("Usage: uv run python gui.py <file>")
