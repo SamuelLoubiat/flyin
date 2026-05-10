@@ -15,7 +15,19 @@ def get_rainbow_color(index: int) -> Any:
 
 
 class DroneSimulationGUI:
+    """
+        Graphical User Interface for visualizing the drone simulation using
+        Tkinter.
+
+        Attributes:
+            dn (DroneNetwork): The network engine containing simulation data.
+            root (tk.Tk): The main window instance.
+            canvas (tk.Canvas): Drawing area for the network map.
+            time_slider (tk.Scale): Navigation bar to move through simulation
+            turns.
+        """
     def __init__(self, root: tk.Tk, drone_network: DroneNetwork) -> None:
+        """Initializes the window, control panel, and drawing scaling logic."""
         self.root = root
         self.dn = drone_network
         self.root.title("Drone Simulator")
@@ -66,6 +78,8 @@ class DroneSimulationGUI:
         self.draw_network()
 
     def load_state(self, idx: int) -> None:
+        """Sets the network entity positions based on a specific turn from
+        history."""
         state = self.dn.history[idx]
         for h in self.dn.hubs.values():
             h.drone_hub.drones = []
@@ -82,6 +96,8 @@ class DroneSimulationGUI:
             drone.waiting_time = d_data["waiting"]
 
     def _update_scaling_logic(self) -> None:
+        """Calculates coordinate mapping to fit the map within the canvas
+        boundaries."""
         hubs = list(self.dn.hubs.values())
         if not hubs:
             return
@@ -98,26 +114,32 @@ class DroneSimulationGUI:
         self.canvas.config(scrollregion=(0, 0, total_w, total_h))
 
     def get_cords(self, hub: Hub) -> tuple[float, float]:
+        """Converts hub grid coordinates to canvas pixel coordinates."""
         x = (hub.x - self.min_x) * self.scale + self.padding
         y = (hub.y - self.min_y) * self.scale + self.padding
         return x, y
 
     def slider_moved(self, val: Any) -> None:
+        """Callback for the slider to update the visual state to a specific
+        turn."""
         self.current_turn_index = int(val)
         self.load_state(self.current_turn_index)
         self.draw_network()
 
     def next_step(self) -> None:
+        """Advances the simulation view by one turn."""
         current = self.time_slider.get()
         if current < len(self.dn.history) - 1:
             self.time_slider.set(current + 1)
 
     def prev_step(self) -> None:
+        """Moves the simulation view back by one turn."""
         current = self.time_slider.get()
         if current > 0:
             self.time_slider.set(current - 1)
 
     def draw_network(self) -> None:
+        """Renders hubs, connections, and drones on the canvas."""
         self.canvas.delete("all")
         self._update_scaling_logic()
 

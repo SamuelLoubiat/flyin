@@ -7,22 +7,45 @@ from entities.Hub import MetadataHub
 
 
 class ParserError(Exception):
+    """Exception raised when the input file format is invalid."""
     pass
 
 
 class Parser:
+    """
+        Handles reading and validating simulation files (.txt).
+
+        Attributes:
+            regex_hub (re.Pattern): Pattern to parse hub definitions and
+            metadata.
+            regex_connection (re.Pattern): Pattern to parse link definitions
+            and metadata.
+        """
     ALLOWED_HUB_ATTRS = {'zone', 'color', 'max_drones'}
     ALLOWED_CONN_ATTRS = {'max_link_capacity'}
     regex_hub = re.compile(r'''^(hub|start_hub|end_hub)
-            :\s*([\w]+)\s+(-?\d+)\s+(-?\d+)(?:\s+\[(.*)\])?''', re.VERBOSE)
+            :\s*([\w]+)\s+(-?\d+)\s+(-?\d+)(?:\s+\[(.*)\])?$''', re.VERBOSE)
     regex_connection = re.compile(
         r'''^connection:\s*([a-zA-Z0-9_]+)-([a-zA-Z0-9_]+)
         (?:\s+\[(.*)])?$''', re.VERBOSE)
 
     def __init__(self) -> None:
+        """Initializes the parser instance."""
         self.connexions: None | set = None
 
     def parse_file(self, dn: DroneNetwork, file_path: str) -> None:
+        """
+                Reads a map file line by line and populates the DroneNetwork.
+
+                Args:
+                    dn (DroneNetwork): The network instance to populate.
+                    file_path (str): Path to the input map file.
+
+                Raises:
+                    ParserError: If syntax or logic (e.g., duplicate
+                    connections) is wrong.
+                    MetadataError: If attributes are invalid.
+                """
         self.connexions = set()
         with (open(file_path, 'r') as f):
             for line_no, line in enumerate(f, 1):
@@ -123,6 +146,11 @@ class Parser:
                     f"Error: Line {line_no}: unknown format -> '{line}'")
 
     def validate(self, dn: DroneNetwork) -> None:
+        """
+                Performs final integrity checks on the parsed network.
+                Ensures exactly one START_HUB, one END_HUB, and a positive
+                number of drones.
+                """
         starts = [h for h in dn.hubs.values() if
                   h.hub_type == HubType.START_HUB]
         ends = [h for h in dn.hubs.values() if h.hub_type == HubType.END_HUB]

@@ -5,21 +5,52 @@ from entities.Hub import MetadataHub
 
 
 class HubNameError(Exception):
+    """Exception raised when a hub name is already in use or cannot be
+    found."""
     pass
 
 
 def can_use_link(connection: Connection) -> Any:
+    """
+        Checks if a connection link has remaining capacity for the
+        current turn.
+
+        Args:
+            connection (Connection): The connection to check.
+
+        Returns:
+            Any: True if the current load is below max capacity, False
+            otherwise.
+        """
     return (connection.drones_this_turn <
             connection.metadata.getattributes().get('max_link_capacity', 0))
 
 
 def can_use_hub(hub: Hub) -> Any:
+    """
+        Checks if a hub has remaining space to receive another drone.
+
+        Args:
+            hub (Hub): The hub to check.
+
+        Returns:
+            Any: True if current drones are fewer than max capacity, False
+            otherwise.
+        """
     return (len(hub.drone_hub.drones) <
             hub.metadata.getattributes().get('max_drones', 0))
 
 
 def execute_move(drone: Drone, target_hub: Hub, connection: Connection) \
         -> None:
+    """
+        Performs the physical movement of a drone between two hubs.
+
+        Args:
+            drone (Drone): The drone to move.
+            target_hub (Hub): The destination hub.
+            connection (Connection): The link used for the movement.
+        """
     drone.hub.drone_hub.drones.remove(drone)
     drone.hub = target_hub
     target_hub.drone_hub.drones.append(drone)
@@ -27,6 +58,19 @@ def execute_move(drone: Drone, target_hub: Hub, connection: Connection) \
 
 
 class DroneNetwork:
+    """
+        Core engine managing the drone simulation, pathfinding, and state
+        history.
+
+        Attributes:
+            nb_drones (int): Total number of drones to simulate.
+            hubs (Dict[str, Hub]): Map of hub names to Hub objects.
+            drones (List[Drone]): List of all drones in the network.
+            connections (List[Connection]): List of all bidirectional links.
+            history (List[Any]): Recorded drone states per turn.
+            history_hub (List[Any]): Recorded hub occupancy per turn.
+            history_conn (List[Any]): Recorded connection loads per turn.
+        """
 
     def __init__(self) -> None:
         self.nb_drones: int = 0
@@ -38,6 +82,7 @@ class DroneNetwork:
         self.history_conn: List[Any] = []
 
     def init_drone(self) -> None:
+        """Initializes and places all drones at the START_HUB."""
         start_hub = next(
             (h for h in self.hubs.values() if h.hub_type == HubType.START_HUB),
             None)
@@ -48,6 +93,8 @@ class DroneNetwork:
             raise MetadataError("no start hub")
 
     def add_hub(self, hub: Hub) -> None:
+        """Adds a new hub to the network after validating uniqueness and
+        coordinates."""
         if hub.name in self.hubs:
             raise HubNameError(hub.name)
 
@@ -71,6 +118,7 @@ class DroneNetwork:
 
     def add_connection(self, name_a: str, name_b: str,
                        meta: Metadata) -> None:
+        """Creates a bidirectional connection between two named hubs."""
         if name_a not in self.hubs or name_b not in self.hubs:
             raise MetadataError(
                 f"Link impossible: {name_a} or {name_b} not existing.")
@@ -83,6 +131,16 @@ class DroneNetwork:
         hub_b.get_connections().append(conn)
 
     def get_shortest_path(self, drone: Drone) -> List[Hub]:
+        """
+                Calculates the optimal path for a drone using a modified
+                Dijkstra algorithm.
+                Considers zone costs (restricted/priority) and current
+                congestion.
+
+                Returns:
+                    List[Hub]: A list of hubs representing the shortest path
+                    to the END_HUB.
+                """
         start_hub = drone.hub
         end_hub = next(
             (h for h in self.hubs.values() if h.hub_type == HubType.END_HUB),
@@ -138,6 +196,8 @@ class DroneNetwork:
         return path[::-1]
 
     def run_simulation_turn(self) -> None:
+        """Executes a single turn of the simulation, moving all drones
+        simultaneously."""
         for hub in self.hubs.values():
             for conn in hub.get_connections():
                 conn.reset_turn()
@@ -194,7 +254,8 @@ class DroneNetwork:
                     drone.hub.drone_hub.drones.append(drone)
 
     def precalculate_all_turns(self) -> None:
-
+        """Runs the simulation until all drones reach the END_HUB,
+        saving states to history."""
         self.save_state()
 
         while any(
@@ -204,6 +265,8 @@ class DroneNetwork:
             self.save_state()
 
     def save_state(self) -> None:
+        """Captures the current position and status of all entities in the
+        history buffers."""
         state = []
         state_hub = []
         state_conn = []
@@ -232,6 +295,8 @@ class DroneNetwork:
         self.history_conn.append(state_conn)
 
     def print_result(self) -> None:
+        """Outputs the movement logs to standard output in the required
+        format."""
         last_hub: dict = {}
         for i, h in enumerate(self.history):
             data = ""
