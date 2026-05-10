@@ -1,6 +1,6 @@
 UV = uv
 PYTHON = $(UV) run python
-MAIN_SCRIPT = gui.py
+MAIN_SCRIPT = main.py
 
 .PHONY: install run debug clean lint lint-strict
 
@@ -22,7 +22,3 @@ clean:
 lint:
 	$(UV) run flake8 . --exclude .venv
 	$(UV) run mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
-
-lint-strict:
-	$(UV) run flake8 . --exclude .venv
-	$(UV) run mypy . --strict

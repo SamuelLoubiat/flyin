@@ -1,13 +1,17 @@
 import math
-import sys
 import tkinter as tk
 from tkinter import TclError
-from typing import List, Any
+from typing import Any
 
 from DroneNetwork import DroneNetwork
 from DroneNetwork import HubType
 from entities import Hub, MetadataError
-from parser import Parser
+
+
+def get_rainbow_color(index: int) -> Any:
+    colors = ["#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF",
+              "#4B0082", "#8B00FF"]
+    return colors[index % len(colors)]
 
 
 class DroneSimulationGUI:
@@ -18,11 +22,7 @@ class DroneSimulationGUI:
 
         self.padding = 100
         self.node_radius = 25
-        self.history: List[Any] = []
         self.current_turn_index = 0
-
-        self.precalculate_all_turns()
-        self.print_result()
 
         self.main_frame = tk.Frame(root)
         self.main_frame.pack(expand=True, fill="both")
@@ -49,7 +49,7 @@ class DroneSimulationGUI:
 
         self.time_slider = tk.Scale(self.control_panel,
                                     from_=0,
-                                    to=len(self.history) - 1,
+                                    to=len(self.dn.history) - 1,
                                     orient="horizontal",
                                     label="Navigation",
                                     command=self.slider_moved)
@@ -65,34 +65,8 @@ class DroneSimulationGUI:
         self.load_state(0)
         self.draw_network()
 
-    def precalculate_all_turns(self) -> None:
-
-        self.save_state()
-
-        max_turns = 1000
-        turn_count = 0
-        while any(
-                d.hub.hub_type != HubType.END_HUB
-                or d.waiting_time > 0 for d in self.dn.drones):
-            self.dn.run_simulation_turn()
-            self.save_state()
-            turn_count += 1
-            if turn_count >= max_turns:
-                break
-
-    def save_state(self) -> None:
-        state = []
-        for d in self.dn.drones:
-            state.append({
-                "id": d.id,
-                "hub_name": d.hub.name if d.hub else None,
-                "target_name": d.target_hub.name if d.target_hub else None,
-                "waiting": d.waiting_time
-            })
-        self.history.append(state)
-
     def load_state(self, idx: int) -> None:
-        state = self.history[idx]
+        state = self.dn.history[idx]
         for h in self.dn.hubs.values():
             h.drone_hub.drones = []
         for d_data in state:
@@ -106,20 +80,6 @@ class DroneSimulationGUI:
                 drone.hub.drone_hub.drones.append(drone)
             drone.target_hub = self.dn.hubs.get(d_data["target_name"])
             drone.waiting_time = d_data["waiting"]
-
-    def print_result(self) -> None:
-        last_hub: dict = {}
-        for h in self.history:
-            data = ""
-            for s in h:
-                if last_hub.get(s['id']) is None:
-                    last_hub.update({s['id']: s['hub_name']})
-                    continue
-                if s['target_name'] is None and s['waiting'] == 0:
-                    if last_hub.get(s['id']) != s['hub_name']:
-                        last_hub.update({s['id']: s['hub_name']})
-                        data += f"D{s['id']}-{s['hub_name']} "
-            print(data)
 
     def _update_scaling_logic(self) -> None:
         hubs = list(self.dn.hubs.values())
@@ -137,7 +97,7 @@ class DroneSimulationGUI:
         total_h = range_y * self.scale + (2 * self.padding)
         self.canvas.config(scrollregion=(0, 0, total_w, total_h))
 
-    def get_coords(self, hub: Hub) -> tuple[float, float]:
+    def get_cords(self, hub: Hub) -> tuple[float, float]:
         x = (hub.x - self.min_x) * self.scale + self.padding
         y = (hub.y - self.min_y) * self.scale + self.padding
         return x, y
@@ -149,7 +109,7 @@ class DroneSimulationGUI:
 
     def next_step(self) -> None:
         current = self.time_slider.get()
-        if current < len(self.history) - 1:
+        if current < len(self.dn.history) - 1:
             self.time_slider.set(current + 1)
 
     def prev_step(self) -> None:
@@ -163,21 +123,21 @@ class DroneSimulationGUI:
 
         drawn = set()
         for hub in self.dn.hubs.values():
-            x1, y1 = self.get_coords(hub)
+            x1, y1 = self.get_cords(hub)
             for conn in hub.get_connections():
                 other = conn.hub_to if conn.hub_from == hub else conn.hub_from
                 pair = tuple(sorted((hub.name, other.name)))
                 if pair not in drawn:
-                    x2, y2 = self.get_coords(other)
+                    x2, y2 = self.get_cords(other)
                     self.canvas.create_line(x1, y1, x2, y2, fill="#7f8c8d",
                                             width=2)
                     drawn.add(pair)
 
         for hub in self.dn.hubs.values():
-            x, y = self.get_coords(hub)
+            x, y = self.get_cords(hub)
             color = hub.metadata.getattributes()['color']
             if color == 'rainbow':
-                color = self.get_rainbow_color(self.current_turn_index)
+                color = get_rainbow_color(self.current_turn_index)
 
             outline = "white"
             if hub.hub_type == HubType.START_HUB:
@@ -215,9 +175,9 @@ class DroneSimulationGUI:
 
         for drone in self.dn.drones:
             if drone.waiting_time > 0 and drone.target_hub:
-                x2, y2 = self.get_coords(drone.target_hub)
+                x2, y2 = self.get_cords(drone.target_hub)
                 if drone.hub:
-                    x1, y1 = self.get_coords(drone.hub)
+                    x1, y1 = self.get_cords(drone.hub)
                     mx, my = (x1 + x2) / 2, (y1 + y2) / 2
 
                     self.canvas.create_oval(mx - 7, my - 7, mx + 7, my + 7,
@@ -225,36 +185,3 @@ class DroneSimulationGUI:
                     self.canvas.create_text(mx, my, text=str(drone.id),
                                             fill="black",
                                             font=("Arial", 7, "bold"))
-
-    def get_rainbow_color(self, index: int) -> Any:
-        colors = ["#FF0000", "#FF7F00", "#FFFF00", "#00FF00", "#0000FF",
-                  "#4B0082", "#8B00FF"]
-        return colors[index % len(colors)]
-
-
-if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        dn = DroneNetwork()
-        ps = Parser()
-        filename = None
-        gui = False
-        for arg in sys.argv[1:]:
-            if arg == "-g":
-                gui = True
-            else:
-                filename = arg
-        if filename is None:
-            print("Usage: uv run python gui.py <file> (-g)")
-            sys.exit(0)
-        try:
-            ps.parse_file(dn, filename)
-            ps.validate(dn)
-            dn.init_drone()
-
-            root = tk.Tk()
-            gui = DroneSimulationGUI(root, dn)
-            root.mainloop()
-        except Exception as e:
-            print(f"Error: {e}")
-    else:
-        print("Usage: uv run python gui.py <file>")

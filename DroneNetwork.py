@@ -29,10 +29,10 @@ def execute_move(drone: Drone, target_hub: Hub, connection: Connection) \
 class DroneNetwork:
 
     def __init__(self) -> None:
-        self.connexions_vues: set[Any] | None = None
         self.nb_drones: int = 0
         self.hubs: Dict[str, Hub] = {}
         self.drones: List[Drone] = []
+        self.history: List[Any] = []
 
     def init_drone(self) -> None:
         start_hub = next(
@@ -182,3 +182,43 @@ class DroneNetwork:
                 else:
                     drone.hub = next_hub
                     drone.hub.drone_hub.drones.append(drone)
+
+    def precalculate_all_turns(self) -> None:
+
+        self.save_state()
+
+        max_turns = 1000
+        turn_count = 0
+        while any(
+                d.hub.hub_type != HubType.END_HUB
+                or d.waiting_time > 0 for d in self.drones):
+            self.run_simulation_turn()
+            self.save_state()
+            turn_count += 1
+            if turn_count >= max_turns:
+                break
+
+    def save_state(self) -> None:
+        state = []
+        for d in self.drones:
+            state.append({
+                "id": d.id,
+                "hub_name": d.hub.name if d.hub else None,
+                "target_name": d.target_hub.name if d.target_hub else None,
+                "waiting": d.waiting_time
+            })
+        self.history.append(state)
+
+    def print_result(self) -> None:
+        last_hub: dict = {}
+        for h in self.history:
+            data = ""
+            for s in h:
+                if last_hub.get(s['id']) is None:
+                    last_hub.update({s['id']: s['hub_name']})
+                    continue
+                if s['target_name'] is None and s['waiting'] == 0:
+                    if last_hub.get(s['id']) != s['hub_name']:
+                        last_hub.update({s['id']: s['hub_name']})
+                        data += f"D{s['id']}-{s['hub_name']} "
+            print(data)
