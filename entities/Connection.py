@@ -1,5 +1,8 @@
+from typing import List
+
 from entities import MetadataError
 from entities.Hub import Hub
+from entities.Drone import Drone
 from entities.Metadata import Metadata
 
 
@@ -19,6 +22,7 @@ class Connection:
         self.hub_from = hub_from
         self.hub_to = hub_to
         self.metadata = metadata
+        self.drones: List[Drone] = []
         self.drones_this_turn: int = 0
 
     def reset_turn(self) -> None:

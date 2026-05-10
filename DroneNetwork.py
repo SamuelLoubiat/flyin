@@ -32,7 +32,10 @@ class DroneNetwork:
         self.nb_drones: int = 0
         self.hubs: Dict[str, Hub] = {}
         self.drones: List[Drone] = []
+        self.connections: List[Connection] = []
         self.history: List[Any] = []
+        self.history_hub: List[Any] = []
+        self.history_conn: List[Any] = []
 
     def init_drone(self) -> None:
         start_hub = next(
@@ -75,6 +78,7 @@ class DroneNetwork:
         hub_a = self.hubs[name_a]
         hub_b = self.hubs[name_b]
         conn = Connection(hub_a, hub_b, meta)
+        self.connections.append(conn)
         hub_a.get_connections().append(conn)
         hub_b.get_connections().append(conn)
 
@@ -144,8 +148,11 @@ class DroneNetwork:
                 if drone.waiting_time == 0:
                     connection = next(c for c in drone.hub.get_connections() if
                                       (c.hub_from == drone.target_hub or
-                                       c.hub_to == drone.target_hub))
+                                       c.hub_to == drone.target_hub) and
+                                      (c.hub_to == drone.hub or
+                                       c.hub_from == drone.hub))
                     connection.drones_this_turn += 1
+                    connection.drones.remove(drone)
                     if drone.target_hub is not None:
                         drone.hub = drone.target_hub
                     else:
@@ -164,8 +171,10 @@ class DroneNetwork:
             next_hub = path[1]
 
             connection = next(c for c in drone.hub.get_connections() if
-                              (c.hub_from == drone.hub or
-                               c.hub_to == next_hub))
+                              (c.hub_from == next_hub or
+                               c.hub_to == next_hub) and
+                              (c.hub_to == drone.hub or
+                               c.hub_from == drone.hub))
 
             if (can_use_link(connection) and can_use_hub(next_hub) or
                     next_hub.hub_type == HubType.END_HUB and
@@ -179,6 +188,7 @@ class DroneNetwork:
                 if dest_zone == MetadataHub.ZoneType.restricted:
                     drone.waiting_time = 1
                     drone.target_hub = next_hub
+                    connection.drones.append(drone)
                 else:
                     drone.hub = next_hub
                     drone.hub.drone_hub.drones.append(drone)
@@ -187,19 +197,16 @@ class DroneNetwork:
 
         self.save_state()
 
-        max_turns = 1000
-        turn_count = 0
         while any(
                 d.hub.hub_type != HubType.END_HUB
                 or d.waiting_time > 0 for d in self.drones):
             self.run_simulation_turn()
             self.save_state()
-            turn_count += 1
-            if turn_count >= max_turns:
-                break
 
     def save_state(self) -> None:
         state = []
+        state_hub = []
+        state_conn = []
         for d in self.drones:
             state.append({
                 "id": d.id,
@@ -207,11 +214,26 @@ class DroneNetwork:
                 "target_name": d.target_hub.name if d.target_hub else None,
                 "waiting": d.waiting_time
             })
+        for h in self.hubs.values():
+            state_hub.append({
+                'name': h.name,
+                'max_drones': h.metadata.getattributes()['max_drones'],
+                'drone': len(h.drone_hub.drones)
+            })
+        for con in self.connections:
+            state_conn.append({
+                'name': f"{con.hub_from.name}-{con.hub_to.name}",
+                'max_drones': con.metadata.
+                getattributes()['max_link_capacity'],
+                'drone': len(con.drones)
+            })
         self.history.append(state)
+        self.history_hub.append(state_hub)
+        self.history_conn.append(state_conn)
 
     def print_result(self) -> None:
         last_hub: dict = {}
-        for h in self.history:
+        for i, h in enumerate(self.history):
             data = ""
             for s in h:
                 if last_hub.get(s['id']) is None:
