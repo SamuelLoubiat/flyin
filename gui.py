@@ -1,4 +1,5 @@
 import math
+import sys
 import tkinter as tk
 from tkinter import TclError
 from typing import List, Any
@@ -232,15 +233,28 @@ class DroneSimulationGUI:
 
 
 if __name__ == "__main__":
-    dn = DroneNetwork()
-    ps = Parser()
-    try:
-        ps.parse_file(dn, "maps.txt")
-        ps.validate(dn)
-        dn.init_drone()
+    if len(sys.argv) > 1:
+        dn = DroneNetwork()
+        ps = Parser()
+        filename = None
+        gui = False
+        for arg in sys.argv[1:]:
+            if arg == "-g":
+                gui = True
+            else:
+                filename = arg
+        if filename is None:
+            print("Usage: uv run python gui.py <file> (-g)")
+            sys.exit(0)
+        try:
+            ps.parse_file(dn, filename)
+            ps.validate(dn)
+            dn.init_drone()
 
-        root = tk.Tk()
-        gui = DroneSimulationGUI(root, dn)
-        root.mainloop()
-    except Exception as e:
-        print(f"Error: {e}")
+            root = tk.Tk()
+            gui = DroneSimulationGUI(root, dn)
+            root.mainloop()
+        except Exception as e:
+            print(f"Error: {e}")
+    else:
+        print("Usage: uv run python gui.py <file>")

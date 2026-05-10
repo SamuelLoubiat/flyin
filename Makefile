@@ -8,7 +8,7 @@ install:
 	$(UV) sync
 
 run: install
-	$(PYTHON) $(MAIN_SCRIPT)
+	$(PYTHON) $(MAIN_SCRIPT) $(ARG)
 
 debug:
 	$(PYTHON) -m pdb $(MAIN_SCRIPT)
